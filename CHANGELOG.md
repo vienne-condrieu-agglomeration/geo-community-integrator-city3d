@@ -8,6 +8,8 @@ Ce fichier s'écrit pour les **utilisateurs** de l'intégrateur, en français.
 
 ## [Non publié]
 
+## [0.1.0] — 2026-11-18
+
 ### Ajouté
 
 - Premier jet de l'intégrateur : préparation des fichiers `<dalle>.bld` (bâtiments LoD2 reconstruits par roofer) et

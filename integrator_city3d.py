@@ -33,7 +33,7 @@ for _sub in ('buildings', 'vegetation'):   # -I n'ajoute pas le dossier du scrip
 import cityjsonseq_to_bld as bld_conv  # noqa: E402
 import pack_veg  # noqa: E402
 
-__version__ = '0.1.0'
+__version__ = "0.1.0"
 FORMAT_VERSION = 1   # version du format de sortie (index.json) : incrémentée pour tout changement incompatible
 
 ROOFER_IMAGE = '3dgi/roofer:v1.0.0'
