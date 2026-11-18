@@ -279,6 +279,56 @@ class Pipeline(unittest.TestCase):
         self.assertTrue(os.path.exists(os.path.join(self.out, 'vegetation', TILE + '.veg')))
         self.assertFalse(any(ic.ROOFER_IMAGE in c for c in self.docker.commands))
 
+    def download_with_bdtopo(self, content, roofer_writes):
+        """Comme download(), avec un GeoJSON BD TOPO donné ; roofer n'écrit rien si roofer_writes est faux."""
+        def fake_bdtopo(tile, dest, log, **k):
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            _Once(dest, 'w').write(content)
+
+        def fake_download(url, dest, log, **k):
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            _Once(dest, 'wb').write(b'copc')
+        docker = self.docker
+
+        def run(cmd):
+            if ic.ROOFER_IMAGE in cmd and not roofer_writes:
+                docker.commands.append(cmd)
+                return
+            docker(cmd)
+        with mock.patch.object(ic, 'lookup_tile', return_value=SOURCE), mock.patch.object(ic, 'download_file', fake_download), \
+                mock.patch.object(ic, 'fetch_bdtopo', fake_bdtopo):
+            return ic.cmd_download(self.args(), run=run, log=self.logs.append)
+
+    def roofer_calls(self):
+        return sum(1 for c in self.docker.commands if ic.ROOFER_IMAGE in c)
+
+    def assert_empty_bld(self):
+        bld = _Once(os.path.join(self.out, 'buildings', TILE + '.bld'), 'rb').read()
+        self.assertEqual(bld[:4], b'BLD1')
+        self.assertEqual(len(bld), 40)   # en-tête seul : 0 sommet, 0 triangle, 0 emprise
+        index = json.load(_Once(os.path.join(self.out, 'index.json'), encoding='utf-8'))
+        self.assertEqual(index['dalles'][TILE]['batiments']['nombre'], 0)
+        self.assertEqual(_Once(os.path.join(self.out, 'vegetation', TILE + '.veg'), 'rb').read()[:4], b'VEG1')
+
+    def test_tile_without_bdtopo_building_gives_empty_bld_without_roofer(self):
+        self.assertEqual(self.download_with_bdtopo('{"features": []}', roofer_writes=True), ic.EXIT_OK)
+        self.assertEqual(self.roofer_calls(), 0)
+        self.assert_empty_bld()
+
+    def test_few_footprints_all_rebuilt_elsewhere_give_empty_bld(self):
+        # bâtiment à cheval sur la limite : roofer ne le reconstruit pas dans cette dalle
+        self.assertEqual(self.download_with_bdtopo('{"features": [{}]}', roofer_writes=False), ic.EXIT_OK)
+        self.assertEqual(self.roofer_calls(), 1)
+        self.assert_empty_bld()
+
+    def test_many_footprints_without_roofer_output_is_an_error(self):
+        with self.assertRaises(ic.Error):
+            self.download_with_bdtopo(json.dumps({'features': [{}] * (ic.MAX_UNBUILT + 1)}), roofer_writes=False)
+
+    def test_unknown_footprint_count_without_roofer_output_is_an_error(self):
+        with self.assertRaises(ic.Error):
+            self.download_with_bdtopo('{}', roofer_writes=False)
+
     def test_purge_removes_work_dir(self):
         self.download(purge=True)
         self.assertFalse(os.path.exists(os.path.join(self.cache, TILE)))

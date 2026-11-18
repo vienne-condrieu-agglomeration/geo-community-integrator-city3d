@@ -33,7 +33,7 @@ for _sub in ('buildings', 'vegetation'):   # -I n'ajoute pas le dossier du scrip
 import cityjsonseq_to_bld as bld_conv  # noqa: E402
 import pack_veg  # noqa: E402
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 FORMAT_VERSION = 1   # version du format de sortie (index.json) : incrémentée pour tout changement incompatible
 
 ROOFER_IMAGE = '3dgi/roofer:v1.0.0'
@@ -232,6 +232,20 @@ def _write(path, blob):
     os.replace(path + '.part', path)
 
 
+# Au-delà, une dalle sans aucune sortie de roofer est une erreur, pas une dalle de bordure
+MAX_UNBUILT = 10
+
+
+def _bdtopo_count(path):
+    """Nombre d'emprises du GeoJSON de la BD TOPO, ou None s'il est inconnu (fichier absent, illisible, sans « features »)."""
+    try:
+        with open(path, encoding='utf-8') as fh:
+            features = json.load(fh).get('features')
+    except (OSError, ValueError, AttributeError):
+        return None
+    return len(features) if isinstance(features, list) else None
+
+
 def build_buildings(tile, work, output, run, log, warnings):
     out = os.path.join(work, 'buildings', 'out')
     jsonl = sorted(os.path.join(out, f) for f in os.listdir(out) if f.endswith('.city.jsonl')) if os.path.isdir(out) else []
@@ -240,11 +254,20 @@ def build_buildings(tile, work, output, run, log, warnings):
             if not os.path.isfile(p):
                 raise Error('dalle %s : %s absent du cache (lancer download)' % (tile, os.path.relpath(p, work)))
         os.makedirs(out, exist_ok=True)
-        log('roofer (%s) : dalle %s' % (ROOFER_IMAGE, tile))
-        run(roofer_command(tile, work))
-        jsonl = sorted(os.path.join(out, f) for f in os.listdir(out) if f.endswith('.city.jsonl'))
-        if not jsonl:
-            raise Error('dalle %s : roofer n\'a produit aucune sortie' % tile)
+        known = _bdtopo_count(os.path.join(work, 'buildings', 'bdtopo.geojson'))
+        if known == 0:
+            log('dalle %s : aucun bâtiment dans la BD TOPO, roofer non lancé (.bld vide)' % tile)
+        else:
+            log('roofer (%s) : dalle %s' % (ROOFER_IMAGE, tile))
+            run(roofer_command(tile, work))
+            jsonl = sorted(os.path.join(out, f) for f in os.listdir(out) if f.endswith('.city.jsonl'))
+            if not jsonl:
+                # Un bâtiment à cheval sur la limite de la dalle appartient à sa voisine : roofer ne trouve alors rien ici.
+                # Quelques emprises seulement : .bld vide (la canopée reste utile). Beaucoup : roofer a échoué, on refuse.
+                if known is None or known > MAX_UNBUILT:
+                    raise Error('dalle %s : roofer n\'a produit aucune sortie' % tile)
+                log('dalle %s : %d emprise(s) BD TOPO, aucune reconstruite par roofer (bâtiments de la dalle voisine) : .bld vide'
+                    % (tile, known))
     msgs = []
     try:
         data, st = bld_conv.convert(jsonl, tile, '2.2', log=msgs.append)

@@ -8,6 +8,15 @@ Ce fichier s'écrit pour les **utilisateurs** de l'intégrateur, en français.
 
 ## [Non publié]
 
+## [0.1.1] — 2026-11-18
+
+### Corrigé
+
+- Une dalle qui ne contient aucun bâtiment reconstruit n'échoue plus (« roofer n'a produit aucune sortie »). C'est le cas des
+  dalles de campagne dont les seules emprises BD TOPO sont à cheval sur la limite d'une dalle voisine, ou sans aucune emprise :
+  l'intégrateur écrit un `.bld` vide (en-tête seul, 0 bâtiment) et publie la canopée comme d'habitude. Sans emprise BD TOPO, roofer
+  n'est plus lancé. À partir de 11 emprises sans aucune sortie, l'erreur est conservée : roofer a alors réellement échoué
+
 ## [0.1.0] — 2026-11-18
 
 ### Ajouté
