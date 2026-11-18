@@ -28,10 +28,12 @@ sur **votre** branche.
 1. Ouvrez une *issue* pour une nouveauté, ou directement une demande de fusion pour une correction simple.
 2. Suivez les [Conventional Commits](https://www.conventionalcommits.org/fr/v1.0.0/), en français, à l'impératif,
    avec la portée `integrator-city3d`.
-3. Lancez les tests : `python3 -I -m unittest discover -s buildings` et `python3 -I -m unittest discover -s vegetation`
-   (Python 3, bibliothèque standard uniquement : n'ajoutez pas de dépendance sans en discuter). Les préparations
-   complètes (`www/prepare-*.sh`) demandent Docker, un accès à `data.geopf.fr` et plusieurs Go : elles ne font pas partie des tests.
-4. Mettez à jour le `CHANGELOG.md` (en français, pour les utilisateurs).
+3. Lancez les tests : `python3 -I -m unittest discover -s buildings`, `… -s vegetation` et
+   `python3 -I -m unittest discover -s . -p 'test_integrator*.py'` (Python 3, bibliothèque standard uniquement : n'ajoutez pas de dépendance sans en discuter). Les préparations
+   complètes (`integrator_city3d.py download`) demandent Docker, un accès à `data.geopf.fr` et plusieurs Go : elles ne font pas partie des tests.
+4. Mettez à jour le `CHANGELOG.md` (en français, pour les utilisateurs) et, pour une version publiée, `__version__` dans
+   `integrator_city3d.py` (un test vérifie qu'elle est celle du premier `## [x.y.z]` du journal). Un changement incompatible de
+   `index.json` incrémente `FORMAT_VERSION`.
 5. Un changement **incompatible** du format `.bld` ou `.veg` (signature, en-tête, codage) doit être décrit dans le
    `GUIDE-DEV.md` du module geo-lidar-hd, qui fait foi, et dans le README : le module lit ces fichiers.
 6. Les commentaires du code sont en français, le code en anglais.

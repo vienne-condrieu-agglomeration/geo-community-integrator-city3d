@@ -14,3 +14,7 @@ Ce fichier s'écrit pour les **utilisateurs** de l'intégrateur, en français.
   `<dalle>.veg` (canopée issue des points de végétation du LiDAR HD, lue avec PDAL) que le panneau Maquette du module
   geo-lidar-hd affiche, avec un serveur local pour les essayer. Code repris du dossier `scripts/city3d` du module
   (commit source `5f11e34`), sans réécriture
+- Ligne de commande `integrator_city3d.py` (`download`, `convert`, `merge`) qui remplace les scripts shell `prepare-*.sh` : une
+  seule implémentation, testée sans Docker. Reprise à délai croissant sur les erreurs 429 et serveur de `data.geopf.fr`, dalles
+  déjà à jour ignorées d'après l'index précédent (code de sortie 10), `index.json` (version du format, tailles, sha256, versions
+  des outils, édition du nuage source), rassemblement avec les dalles déjà publiées, nettoyage du cache dalle par dalle

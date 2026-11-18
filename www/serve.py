@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Sert le dossier served/ en HTTP avec CORS, pour le réglage city3dUrl du module geo-lidar-hd.
 
-    python3 -I serve.py [port]        (défaut 8777 ; écoute sur 127.0.0.1 seulement)
+    python3 -I serve.py [port] [dossier]        (défaut 8777 et served/ ; écoute sur 127.0.0.1 seulement)
 
-served/ contient un sous-dossier par fonction : served/buildings/<dalle>.bld et served/vegetation/<dalle>.veg. L'URL de base à saisir
+Le dossier est la sortie de integrator_city3d.py (--output). Il contient un sous-dossier par fonction : served/buildings/<dalle>.bld et served/vegetation/<dalle>.veg. L'URL de base à saisir
 dans city3dUrl est celle du serveur, par exemple http://localhost:8777. Lecture seule. En-têtes ajoutés :
 Access-Control-Allow-Origin (CORS) et Access-Control-Allow-Private-Network (exigé par Chrome quand une page GEO publique appelle
 http://localhost).
@@ -13,7 +13,7 @@ import http.server
 import os
 import sys
 
-ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'served')
+ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'served')   # remplacé par le 2e argument s'il est donné
 FEATURES = (('buildings', 'buildingsEnabled'), ('vegetation', 'treesEnabled'))   # (sous-dossier, interrupteur du module)
 
 
@@ -32,8 +32,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
 if __name__ == '__main__':
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8777
+    if len(sys.argv) > 2:
+        ROOT = os.path.abspath(sys.argv[2])
     if not os.path.isdir(ROOT):
-        sys.exit('dossier served/ absent : lancer d\'abord ./prepare-buildings.sh ou ./prepare-vegetation.sh')
+        sys.exit('dossier %s absent : lancer d\'abord integrator_city3d.py download' % ROOT)
     for sub, switch in FEATURES:
         path = os.path.join(ROOT, sub)
         files = sorted(os.listdir(path)) if os.path.isdir(path) else []

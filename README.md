@@ -17,6 +17,7 @@ y 6493000–6494000, au centre de Vienne).
 ```
 LiDAR HD (COPC, IGN) ─┬─ roofer (Docker) + BD TOPO ─ CityJSONSeq ─ buildings/cityjsonseq_to_bld.py ─ <dalle>.bld
                       └─ PDAL (Docker), 2 grilles de 1 m ─────────── vegetation/pack_veg.py ─────── <dalle>.veg
+                      (le tout piloté par integrator_city3d.py, qui écrit aussi index.json)
 ```
 
 Python 3, bibliothèque standard uniquement ; Docker pour roofer et PDAL ; `curl`.
@@ -24,21 +25,40 @@ Python 3, bibliothèque standard uniquement ; Docker pour roofer et PDAL ; `curl
 ## Utilisation
 
 ```bash
-cd src/integrators/city3d/www
+cd src/integrators/city3d
 
-./prepare-buildings.sh                       # dalle 0846-6494 : ~2 min + ~290 Mo de COPC
-./prepare-buildings.sh around 0846-6494      # la dalle et ses 8 voisines
-./prepare-vegetation.sh around 0846-6494     # idem pour les arbres (le COPC est partagé)
-python3 -I serve.py                          # sert served/ en HTTP avec CORS (essai local)
+# télécharger, reconstruire et convertir (la dalle 0846-6494 : ~3 min, ~290 Mo de COPC)
+python3 -I integrator_city3d.py download --tiles 0846-6494 --output site/
+python3 -I integrator_city3d.py download --around 0846-6494 --output site/        # la dalle et ses 8 voisines
+
+# ne refaire que ce qui a changé depuis la dernière publication (code de sortie 10 s'il n'y a rien à faire)
+python3 -I integrator_city3d.py download --around 0846-6494 --output site/ --previous-index https://…/index.json
+
+# convertir depuis le cache, sans réseau ; rassembler des sorties partielles avec les dalles déjà publiées
+python3 -I integrator_city3d.py convert --tiles 0846-6494 --cache cache/ --output site/
+python3 -I integrator_city3d.py merge --previous-index https://…/index.json --output site/ partiel1/ partiel2/
 ```
 
-Les scripts sont relançables : ce qui est déjà téléchargé ou calculé n'est pas refait. Détail, prérequis, essai dans un vrai
-GEO et dépannage : [`www/README.md`](www/README.md) ; pipelines : [`buildings/README.md`](buildings/README.md) et
-[`vegetation/README.md`](vegetation/README.md). Tests :
+| Option | Rôle |
+|---|---|
+| `--tiles`, `--around` | dalles demandées (`XXXX-YYYY` : coin nord-ouest en km) |
+| `--output` | `buildings/<dalle>.bld`, `vegetation/<dalle>.veg` et `index.json` |
+| `--cache` | un dossier de travail par dalle (COPC, BD TOPO, sorties de roofer et de PDAL) ; défaut `~/.cache/integrator-city3d` ; relançable |
+| `--features` | `buildings`, `vegetation` ou les deux |
+| `--previous-index` | `index.json` déjà publié (fichier ou https) : une dalle est ignorée si la version de l'intégrateur, les outils et l'édition du nuage de l'IGN n'ont pas changé |
+| `--force`, `--purge`, `--strict` | régénérer quand même ; supprimer le cache de chaque dalle une fois traitée (disque limité) ; échec en cas d'avertissement |
+
+Codes de sortie : 0 fichiers générés, 1 erreur, 10 rien à faire. Les requêtes vers `data.geopf.fr` sont rejouées à délai croissant
+(429 et erreurs serveur ; le WFS de l'IGN renvoie aussi parfois des pages d'erreur en HTTP 200). `merge` contrôle la taille et le
+sha256 de chaque fichier repris : un déploiement GitHub Pages remplace tout le site, il faut donc y remettre les dalles déjà publiées.
+
+Essai local dans un vrai GEO (serveur CORS, réglages, points à regarder) : [`www/README.md`](www/README.md). Pipelines détaillés :
+[`buildings/README.md`](buildings/README.md) et [`vegetation/README.md`](vegetation/README.md). Tests, sans Docker ni réseau :
 
 ```bash
 python3 -I -m unittest discover -s buildings
 python3 -I -m unittest discover -s vegetation
+python3 -I -m unittest discover -s . -p 'test_integrator*.py'
 ```
 
 ## Format de sortie

@@ -1,35 +1,25 @@
 # Essai local : bâtiments LoD2 et arbres 3D (centre de Vienne, dalle 0846-6494)
 
-Prépare les fichiers de bâtiments (`.bld`) et de végétation (`.veg`) d'une ou plusieurs dalles et les sert en local avec CORS,
-pour essayer les cases « Bâtiments LoD2 » et « Arbres » de la maquette dans un vrai GEO. Les deux fonctions ont chacune leur
-préparation et leur dossier servi, mais un seul réglage de base dans le Générateur : `city3dUrl` = `http://localhost:8777`.
+Prépare les fichiers de bâtiments (`.bld`) et de végétation (`.veg`) d'une ou plusieurs dalles avec `integrator_city3d.py` et les
+sert en local avec CORS, pour essayer les cases « Bâtiments LoD2 » et « Arbres » de la maquette dans un vrai GEO. Les deux
+fonctions ont chacune leur outil et leur dossier servi, mais un seul réglage de base dans le Générateur : `city3dUrl` = `http://localhost:8777`.
 
 | | Bâtiments LoD2 | Arbres 3D |
 |---|---|---|
 | Outil de préparation | roofer (Docker) | PDAL (Docker) |
-| Script | `prepare-buildings.sh` | `prepare-vegetation.sh` |
+| Fonction de la CLI | `download --features buildings` | `download --features vegetation` |
 | Pipeline et format | [`../buildings/README.md`](../buildings/README.md), `GUIDE-DEV.md` du module (« Bâtiments LoD2 ») | [`../vegetation/README.md`](../vegetation/README.md), `GUIDE-DEV.md` du module (« Arbres ») |
-| Fichiers servis | `served/buildings/<dalle>.bld` | `served/vegetation/<dalle>.veg` |
-| Dossier servi | `served/buildings/` | `served/vegetation/` |
+| Fichiers servis | `buildings/<dalle>.bld` | `vegetation/<dalle>.veg` |
 | Interrupteur du Générateur | `buildingsEnabled` | `treesEnabled` |
 
 ## Contenu du dossier
 
 ```
 www/
-  prepare-buildings.sh    bâtiments : COPC + BD TOPO -> roofer -> served/buildings/*.bld
-  prepare-vegetation.sh   végétation : COPC -> PDAL (2 passes) -> served/vegetation/*.veg
-  lib.sh                  fonctions communes (liste de dalles, téléchargement du COPC)
-  serve.py                serveur HTTP de served/ avec CORS (lecture seule, 127.0.0.1)
+  serve.py                serveur HTTP d'un dossier de sortie avec CORS (lecture seule, 127.0.0.1)
   README.md
-  work/                   (ignoré par git) fichiers de travail
-    <dalle>/copc/           le nuage COPC, partagé par les deux préparations
-    <dalle>/buildings/      BD TOPO, sortie de roofer
-    <dalle>/vegetation/     grilles PDAL
-    logs/
-  served/                 (ignoré par git) ce que le serveur expose
-    buildings/              <dalle>.bld
-    vegetation/             <dalle>.veg
+  work/                   (ignoré par git) cache de la CLI, un dossier par dalle (COPC, BD TOPO, sorties de roofer et de PDAL)
+  served/                 (ignoré par git) sortie de la CLI : buildings/, vegetation/, index.json
 ```
 
 Prérequis : `docker`, `curl`, `python3`, un accès à `data.geopf.fr` et à Docker Hub, ~290 Mo de COPC par dalle (~1 Go par dalle
@@ -37,23 +27,20 @@ avec les produits de roofer), plus 4 Go pour l'image PDAL si l'on prépare la v�
 
 ## 1. Préparer les fichiers
 
-Les deux scripts prennent les mêmes arguments : aucune dalle (0846-6494), une liste de dalles « XXXX-YYYY » (coin nord-ouest en km,
-Lambert-93), ou `around XXXX-YYYY` (la dalle et ses 8 voisines). Ils sont relançables : ce qui est déjà téléchargé ou calculé n'est
-pas refait (supprimer `work/` pour tout refaire).
+`integrator_city3d.py download` prend `--tiles XXXX-YYYY…` (coin nord-ouest en km, Lambert-93) ou `--around XXXX-YYYY` (la dalle et
+ses 8 voisines). Il est relançable : ce qui est déjà dans le cache (`--cache`) n'est ni retéléchargé ni recalculé (supprimer le
+cache pour tout refaire). `--features buildings` ou `--features vegetation` limite le travail à une fonction.
 
 ```bash
-cd src/integrators/city3d/www
+cd src/integrators/city3d
 
-./prepare-buildings.sh                       # la dalle 0846-6494 : ~2 min + ~290 Mo de COPC
-./prepare-buildings.sh around 0846-6494      # + ses 8 voisines : ~15 min de roofer
-./prepare-vegetation.sh                      # la dalle 0846-6494 : ~30 s si le COPC est déjà là
-./prepare-vegetation.sh around 0846-6494     # ses 8 voisines : ~5 min
+python3 -I integrator_city3d.py download --tiles 0846-6494 --output www/served --cache www/work     # ~2 min + ~290 Mo de COPC
+python3 -I integrator_city3d.py download --around 0846-6494 --output www/served --cache www/work    # + ses 8 voisines : ~15 min de roofer
+python3 -I integrator_city3d.py download --tiles 0846-6494 --features vegetation --output www/served --cache www/work   # arbres seuls
 ```
 
-Résultats attendus sur la dalle 0846-6494 : environ 1 471 bâtiments et 128 000 triangles, un `.bld` d'environ 2,7 Mo (le résultat de
-roofer varie un peu d'une exécution à l'autre) ; 3 399 arbres, un `.veg` de 923 Ko. Les lignes « ignorés » (bâtiments sans géométrie,
-murs d'aire nulle) et « ATTENTION : 3 bâtiments sans GroundSurface » de la préparation des bâtiments sont normales : voir « Limites » du
-GUIDE-DEV du module. Sur les 9 dalles de Vienne centre : 360 000 triangles de bâtiments (7,5 Mo de `.bld`) et 10,5 Mo de `.veg`.
+Mesuré le 2026-11-18 sur la dalle 0846-6494 : 3 min 27 s au total (téléchargement du COPC compris), `.bld` de 2,75 Mo
+(1 471 bâtiments), `.veg` de 923 125 octets, avec l'index `www/served/index.json` (tailles, sha256, version des outils).
 
 ## 2. Lancer le serveur
 
@@ -139,9 +126,10 @@ seconde cochée contre 58,1 décochée ; non mesuré avec les arbres.
 | Case présente, rien ne change, console « ignorés … Failed to fetch » | serveur arrêté, mauvaise URL (la base doit contenir `buildings/` et `vegetation/`), ou navigateur sur une autre machine |
 | « … ignorés … origine … au lieu de … » | fichier produit pour une autre dalle que son nom |
 | Murs mouchetés, bâtiments décalés, arbres mal placés | noter la capture et le niveau de zoom : défaut du rendu à corriger |
-| `prepare-buildings.sh` : « réponse WFS tronquée » | le WFS a plafonné le nombre d'objets : paginer, voir `../buildings/README.md` |
+| `download` : « réponse WFS tronquée » | le WFS a plafonné le nombre d'objets : paginer, voir `../buildings/README.md` |
+| `download` : « réponse qui n'est pas du JSON » | le WFS de l'IGN a répondu une page d'erreur en HTTP 200 plusieurs fois de suite : relancer plus tard |
 | Docker : `permission denied` dans `work/` | un ancien passage en root a laissé des fichiers : `sudo rm -rf work/<dalle>/buildings/out` |
-| `serve.py` ne voit plus les fichiers après un déplacement du dossier | relancer `python3 -I serve.py` depuis son nouvel emplacement |
+| `serve.py` ne voit pas les fichiers | `python3 -I serve.py 8777 <dossier de sortie>` : le dossier doit contenir `buildings/` et `vegetation/` |
 
-Pour une autre dalle, passer simplement son nom aux scripts (`./prepare-buildings.sh 0847-6494`). L'URL du COPC est lue dans le WFS
-des dalles ; une dalle absente du LiDAR HD arrête le script avec « aucune dalle LiDAR HD ici ».
+Pour une autre dalle, passer simplement son nom à `--tiles`. L'URL du COPC est lue dans le WFS des dalles ; une dalle absente du
+LiDAR HD arrête la commande avec « aucune dalle LiDAR HD ici ».

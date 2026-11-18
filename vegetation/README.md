@@ -16,18 +16,18 @@ disque. Testée le 2026-11-13 ; le tag `latest` change, d'où l'empreinte.
 
 ## En pratique
 
-Le plus simple : `www/prepare-vegetation.sh` (voir `www/README.md`), qui télécharge le nuage de la dalle si
+Le plus simple : `integrator_city3d.py download --features vegetation` (voir `../README.md`), qui télécharge le nuage de la dalle si
 besoin, lance les deux passes PDAL et empaquette :
 
 ```bash
-cd www
-./prepare-vegetation.sh around 0846-6494   # la dalle et ses 8 voisines ; ~30 s de PDAL par dalle (le COPC est partagé avec prepare-buildings.sh)
+cd ..   # racine de l'intégrateur
+python3 -I integrator_city3d.py download --around 0846-6494 --features vegetation --output www/served --cache www/work   # ~30 s de PDAL par dalle (le COPC est partagé avec les bâtiments)
 ```
 
 À la main, pour une dalle (ex. 0846-6494, coin nord-ouest en km Lambert-93 : x 846000-847000, y 6493000-6494000) :
 
 ```bash
-# 1. sommet : altitude maximale des points de classes 3 à 5 (pipeline-top.json, voir le script pour le gabarit)
+# 1. sommet : altitude maximale des points de classes 3 à 5 (pipeline-top.json, voir `pdal_pipeline` dans `../integrator_city3d.py` pour le gabarit)
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD/veg":/veg -v "$PWD/in":/in:ro "$PDAL_IMAGE" pdal pipeline /veg/top.json
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD/veg":/veg "$PDAL_IMAGE" gdal_translate -q -of ENVI /veg/top.tif /veg/top.bin
 # 2. base : altitude minimale des points de classe 5 (même chose avec base.json)
